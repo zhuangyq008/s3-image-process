@@ -13,6 +13,7 @@ This project implements an API for resizing images stored in an S3 bucket using 
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── cloudformation.yaml
+├── .gitignore
 └── README.md
 ```
 
@@ -38,11 +39,14 @@ uvicorn main:app --reload
    ```
    docker tag s3-image-resize:latest <your-account-id>.dkr.ecr.<your-region>.amazonaws.com/image-resize-repo:latest
    ```
-3. Push the image to ECR:
+3. Login AWS ECR:
 
    ```
    aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+   ```
+4. Push the image to ECR:
 
+   ```
    docker push <your-account-id>.dkr.ecr.<your-region>.amazonaws.com/image-resize-repo:latest
    ```
 
@@ -68,92 +72,48 @@ The API supports various image resizing options. Here are some use cases and exa
 ### 1. Resize an image proportionally to 50% of its original size
 
 ```bash
-curl -X POST https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_key": "example.jpg",
-    "p": 50
-  }'
+curl -X GET "https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize/example.jpg?p=50"
 ```
 
 ### 2. Resize an image to a specific width (800px) while maintaining aspect ratio
 
 ```bash
-curl -X POST https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_key": "example.jpg",
-    "w": 800,
-    "m": "lfit"
-  }'
+curl -X GET "https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize/example.jpg?w=800&m=lfit"
 ```
 
 ### 3. Resize an image to fit within a 800x600 box, maintaining aspect ratio
 
 ```bash
-curl -X POST https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_key": "example.jpg",
-    "w": 800,
-    "h": 600,
-    "m": "lfit"
-  }'
+curl -X GET "https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize/example.jpg?w=800&h=600&m=lfit"
 ```
 
 ### 4. Resize an image to cover a 800x600 area and crop the excess
 
 ```bash
-curl -X POST https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_key": "example.jpg",
-    "w": 800,
-    "h": 600,
-    "m": "fill"
-  }'
+curl -X GET "https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize/example.jpg?w=800&h=600&m=fill"
 ```
 
 ### 5. Resize an image to fit within a 800x600 box and pad with transparency
 
 ```bash
-curl -X POST https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_key": "example.jpg",
-    "w": 800,
-    "h": 600,
-    "m": "pad"
-  }'
+curl -X GET "https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize/example.jpg?w=800&h=600&m=pad"
 ```
 
 ### 6. Force resize an image to exactly 800x600, ignoring aspect ratio
 
 ```bash
-curl -X POST https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_key": "example.jpg",
-    "w": 800,
-    "h": 600,
-    "m": "fixed"
-  }'
+curl -X GET "https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize/example.jpg?w=800&h=600&m=fixed"
 ```
 
 ### 7. Resize an image to 150% of its original size
 
 ```bash
-curl -X POST https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize \
-  -H "Content-Type: application/json" \
-  -d '{
-    "image_key": "example.jpg",
-    "p": 150
-  }'
+curl -X GET "https://<your-api-id>.execute-api.<your-region>.amazonaws.com/prod/resize/example.jpg?p=150"
 ```
 
 ## API Parameters
 
-- `image_key`: The key of the image in the S3 bucket
+- `image_key`: The key of the image in the S3 bucket (specified as a path variable)
 - `p`: Percentage for proportional scaling (1-1000)
 - `w`: Target width
 - `h`: Target height

@@ -27,17 +27,26 @@ Resources:
       ParentId: !GetAtt ImageResizeApi.RootResourceId
       PathPart: 'resize'
 
+  ImageKeyResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref ImageResizeApi
+      ParentId: !Ref ImageResizeResource
+      PathPart: '{image_key}'
+
   ImageResizeMethod:
     Type: 'AWS::ApiGateway::Method'
     Properties:
       RestApiId: !Ref ImageResizeApi
-      ResourceId: !Ref ImageResizeResource
-      HttpMethod: POST
+      ResourceId: !Ref ImageKeyResource
+      HttpMethod: GET
       AuthorizationType: NONE
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ImageResizeLambda.Arn}/invocations'
+      RequestParameters:
+        method.request.path.image_key: true
 
   ImageResizeLambda:
     Type: 'AWS::Lambda::Function'
@@ -83,9 +92,9 @@ Resources:
       FunctionName: !Ref ImageResizeLambda
       Action: 'lambda:InvokeFunction'
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ImageResizeApi}/*/POST/resize'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ImageResizeApi}/*/GET/resize/*'
 
 Outputs:
   ApiEndpoint:
     Description: 'API Gateway endpoint URL for the resize function'
-    Value: !Sub 'https://${ImageResizeApi}.execute-api.${AWS::Region}.amazonaws.com/prod/resize'
+    Value: !Sub 'https://${ImageResizeApi}.execute-api.${AWS::Region}.amazonaws.com/prod/resize/{image_key}'
