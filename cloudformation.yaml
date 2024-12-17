@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for S3 Image Resize API'
+
+Parameters:
+  ImageBucket:
+    Type: String
+    Description: 'Name of the S3 bucket to store images'
+  ImageBucketPrefix:
+    Type: String
+    Description: 'Prefix for image storage in the S3 bucket'
+    Default: ''
+  ECRImageUri:
+    Type: String
+    Description: 'URI of the ECR image for the Lambda function'
+
+Resources:
+  ImageResizeApi:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: 'Image Resize API'
+      Description: 'API for resizing images stored in S3'
+
+  ImageResizeResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: !Ref ImageResizeApi
+      ParentId: !GetAtt ImageResizeApi.RootResourceId
+      PathPart: 'resize'
+
+  ImageResizeMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      RestApiId: !Ref ImageResizeApi
+      ResourceId: !Ref ImageResizeResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ImageResizeLambda.Arn}/invocations'
+
+  ImageResizeLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      FunctionName: 'image-resize-lambda'
+      Role: !GetAtt LambdaExecutionRole.Arn
+      PackageType: Image
+      Code:
+        ImageUri: !Ref ECRImageUri
+      MemorySize: 256
+      Timeout: 30
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref ImageBucket
+          S3_IMAGE_PREFIX: !Ref ImageBucketPrefix
+
+  LambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Policies:
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                Resource: !Sub 'arn:aws:s3:::${ImageBucket}/*'
+
+  LambdaApiGatewayPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref ImageResizeLambda
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ImageResizeApi}/*/POST/resize'
+
+Outputs:
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL for the resize function'
+    Value: !Sub 'https://${ImageResizeApi}.execute-api.${AWS::Region}.amazonaws.com/prod/resize'
