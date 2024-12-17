@@ -18,6 +18,13 @@ This project implements an API for resizing images stored in an S3 bucket using 
 
 ## Deployment Instructions
 
+### Local Deployment
+
+```
+cd server
+uvicorn main:app --reload
+```
+
 ### 1. Prepare the Docker Image
 
 1. Build the Docker image:
@@ -35,6 +42,7 @@ This project implements an API for resizing images stored in an S3 bucket using 
 
    ```
    aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+
    docker push <your-account-id>.dkr.ecr.<your-region>.amazonaws.com/image-resize-repo:latest
    ```
 
