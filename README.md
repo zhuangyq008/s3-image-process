@@ -1,6 +1,6 @@
 # s3-image-process
 
-This project implements an API for resizing images stored in an S3 bucket using FastAPI.
+This project implements an API for resizing and watermarking images stored in an S3 bucket using FastAPI.
 
 ## Project Structure
 
@@ -10,6 +10,7 @@ This project implements an API for resizing images stored in an S3 bucket using 
 │   ├── main.py
 │   ├── image_processor.py
 │   ├── s3_operations.py
+│   ├── watermark.py
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── cloudformation.yaml
@@ -66,51 +67,63 @@ The server will start running on `http://127.0.0.1:8000`. You can access the API
 
 ## API Usage
 
-The API now returns the resized image directly, instead of an S3 key. Here are some use cases and example curl commands:
+The API now returns the processed image directly, instead of an S3 key. Here are some use cases and example curl commands:
 
-### 1. Resize an image proportionally to 50% of its original size
+### Resize API
+
+#### 1. Resize an image proportionally to 50% of its original size
 
 ```bash
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?p=50" --output resized_image.jpg
 ```
 
-### 2. Resize an image to a specific width (800px) while maintaining aspect ratio
+#### 2. Resize an image to a specific width (800px) while maintaining aspect ratio
 
 ```bash
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&m=lfit" --output resized_image.jpg
 ```
 
-### 3. Resize an image to fit within a 800x600 box, maintaining aspect ratio
+#### 3. Resize an image to fit within a 800x600 box, maintaining aspect ratio
 
 ```bash
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=lfit" --output resized_image.jpg
 ```
 
-### 4. Resize an image to cover a 800x600 area and crop the excess
+#### 4. Resize an image to cover a 800x600 area and crop the excess
 
 ```bash
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=fill" --output resized_image.jpg
 ```
 
-### 5. Resize an image to fit within a 800x600 box and pad with transparency
+#### 5. Resize an image to fit within a 800x600 box and pad with transparency
 
 ```bash
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=pad" --output resized_image.jpg
 ```
 
-### 6. Force resize an image to exactly 800x600, ignoring aspect ratio
+#### 6. Force resize an image to exactly 800x600, ignoring aspect ratio
 
 ```bash
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=fixed" --output resized_image.jpg
 ```
 
-### 7. Resize an image to 150% of its original size
+#### 7. Resize an image to 150% of its original size
 
 ```bash
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?p=150" --output resized_image.jpg
 ```
 
+### Watermark API
+
+#### Add a watermark to an image
+
+```bash
+curl -X GET "http://127.0.0.1:8000/watermark/example.jpg?text=Copyright&t=50&g=se&x=20&y=20" --output watermarked_image.jpg
+```
+
 ## API Parameters
+
+### Resize API Parameters
 
 - `image_key`: The key of the image in the S3 bucket (specified as a path variable)
 - `p`: Percentage for proportional scaling (1-1000)
@@ -118,12 +131,25 @@ curl -X GET "http://127.0.0.1:8000/resize/example.jpg?p=150" --output resized_im
 - `h`: Target height
 - `m`: Resize mode (lfit, mfit, fill, pad, fixed)
 
+### Watermark API Parameters
+
+- `image_key`: The key of the image in the S3 bucket (specified as a path variable)
+- `text`: Watermark text (required)
+- `t`: Transparency of the watermark (0-100, default: 100)
+- `g`: Position of the watermark (nw, north, ne, west, center, east, sw, south, se; default: se)
+- `x`: Horizontal offset (0-4096, default: 10)
+- `y`: Vertical offset (0-4096, default: 10)
+- `voffset`: Vertical offset for center alignments (-1000 to 1000, default: 0)
+- `fill`: Fill the image with watermark (0 or 1, default: 0)
+- `padx`: Horizontal padding between watermarks (0-4096, default: 0)
+- `pady`: Vertical padding between watermarks (0-4096, default: 0)
+
 ## Caching
 
 The API implements caching headers to improve performance:
 
-- `Cache-Control: public, max-age=3600`: Allows caching of the resized image for 1 hour.
-- `ETag`: Provides a unique identifier for each resized image, enabling efficient cache validation.
+- `Cache-Control: public, max-age=3600`: Allows caching of the processed image for 1 hour.
+- `ETag`: Provides a unique identifier for each processed image, enabling efficient cache validation.
 
 ## Cleanup
 
