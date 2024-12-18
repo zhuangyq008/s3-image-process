@@ -1,6 +1,6 @@
 # s3-image-process
 
-This project implements an API for resizing and watermarking images stored in an S3 bucket using FastAPI.
+This project implements an API for resizing, cropping, and watermarking images stored in an S3 bucket using FastAPI.
 
 ## Project Structure
 
@@ -9,6 +9,7 @@ This project implements an API for resizing and watermarking images stored in an
 ├── server/
 │   ├── main.py
 │   ├── image_processor.py
+│   ├── image_cropper.py
 │   ├── s3_operations.py
 │   ├── watermark.py
 │   ├── requirements.txt
@@ -113,6 +114,32 @@ curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=fixed" --out
 curl -X GET "http://127.0.0.1:8000/resize/example.jpg?p=150" --output resized_image.jpg
 ```
 
+### Crop API
+
+#### 1. Crop an image to 800x600 from the center
+
+```bash
+curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=center" --output cropped_image.jpg
+```
+
+#### 2. Crop an image from the top-left corner with offset
+
+```bash
+curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=nw&x=100&y=50" --output cropped_image.jpg
+```
+
+#### 3. Crop and scale the result to 150%
+
+```bash
+curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=center&p=150" --output cropped_image.jpg
+```
+
+#### 4. Crop from the bottom-right corner
+
+```bash
+curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=se" --output cropped_image.jpg
+```
+
 ### Watermark API
 
 #### Add a watermark to an image
@@ -130,6 +157,25 @@ curl -X GET "http://127.0.0.1:8000/watermark/example.jpg?text=Copyright&t=50&g=s
 - `w`: Target width
 - `h`: Target height
 - `m`: Resize mode (lfit, mfit, fill, pad, fixed)
+
+### Crop API Parameters
+
+- `image_key`: The key of the image in the S3 bucket (specified as a path variable)
+- `w`: Crop width (optional)
+- `h`: Crop height (optional)
+- `x`: X-axis offset (default: 0)
+- `y`: Y-axis offset (default: 0)
+- `g`: Gravity point for cropping (default: nw)
+  - `nw`: Left top
+  - `north`: Center top
+  - `ne`: Right top
+  - `west`: Left center
+  - `center`: Center
+  - `east`: Right center
+  - `sw`: Left bottom
+  - `south`: Center bottom
+  - `se`: Right bottom
+- `p`: Scale percentage after cropping (1-200, default: 100)
 
 ### Watermark API Parameters
 

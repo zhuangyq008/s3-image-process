@@ -1,11 +1,12 @@
 import os
 import hashlib
-from fastapi import FastAPI, Query, status
+from fastapi import FastAPI, Query, status, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
 
 from image_processor import resize_image, ResizeMode
+from image_cropper import crop_image, CropGravity
 from s3_operations import S3Config, get_s3_client, download_image_from_s3
 from watermark import add_watermark
 
@@ -29,48 +30,109 @@ async def resize_image_endpoint(
     h: Optional[int] = Query(None, gt=0, description="Target height"),
     m: Optional[ResizeMode] = Query(ResizeMode.LFIT, description="Resize mode")
 ):
-    s3_config = S3Config()
-    s3_client = get_s3_client()
+    try:
+        s3_config = S3Config()
+        s3_client = get_s3_client()
 
-    # Download image from S3
-    image_data = download_image_from_s3(s3_client, s3_config.bucket_name, image_key)
+        # Download image from S3
+        image_data = download_image_from_s3(s3_client, s3_config.bucket_name, image_key)
 
-    # Prepare resize parameters
-    resize_params = {
-        "p": p,
-        "w": w,
-        "h": h,
-        "m": m
-    }
-    resize_params = {k: v for k, v in resize_params.items() if v is not None}
-
-    # Resize image
-    resized_image_data = resize_image(image_data, resize_params)
-
-    # Determine content type based on file extension
-    _, file_extension = os.path.splitext(image_key)
-    content_type = {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.webp': 'image/webp'
-    }.get(file_extension.lower(), 'application/octet-stream')
-
-    # Generate ETag
-    etag = hashlib.md5(resized_image_data).hexdigest()
-
-    # Set cache control (1 hour)
-    cache_control = "public, max-age=3600"
-
-    # Return the resized image data with caching headers
-    return Response(
-        content=resized_image_data,
-        media_type=content_type,
-        headers={
-            "Cache-Control": cache_control,
-            "ETag": etag
+        # Prepare resize parameters
+        resize_params = {
+            "p": p,
+            "w": w,
+            "h": h,
+            "m": m
         }
-    )
+        resize_params = {k: v for k, v in resize_params.items() if v is not None}
+
+        # Resize image
+        resized_image_data = resize_image(image_data, resize_params)
+
+        # Determine content type based on file extension
+        _, file_extension = os.path.splitext(image_key)
+        content_type = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp'
+        }.get(file_extension.lower(), 'application/octet-stream')
+
+        # Generate ETag
+        etag = hashlib.md5(resized_image_data).hexdigest()
+
+        # Set cache control (1 hour)
+        cache_control = "public, max-age=3600"
+
+        # Return the resized image data with caching headers
+        return Response(
+            content=resized_image_data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": cache_control,
+                "ETag": etag
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/crop/{image_key}")
+async def crop_image_endpoint(
+    image_key: str,
+    w: Optional[int] = Query(None, gt=0, description="Crop width"),
+    h: Optional[int] = Query(None, gt=0, description="Crop height"),
+    x: int = Query(0, ge=0, description="X-axis offset"),
+    y: int = Query(0, ge=0, description="Y-axis offset"),
+    g: CropGravity = Query(CropGravity.NW, description="Gravity point for cropping"),
+    p: int = Query(100, ge=1, le=200, description="Scale percentage after cropping")
+):
+    try:
+        s3_config = S3Config()
+        s3_client = get_s3_client()
+
+        # Download image from S3
+        image_data = download_image_from_s3(s3_client, s3_config.bucket_name, image_key)
+
+        # Prepare crop parameters
+        crop_params = {
+            "w": w,
+            "h": h,
+            "x": x,
+            "y": y,
+            "g": g,
+            "p": p
+        }
+        crop_params = {k: v for k, v in crop_params.items() if v is not None}
+
+        # Crop image
+        cropped_image_data = crop_image(image_data, crop_params)
+
+        # Determine content type based on file extension
+        _, file_extension = os.path.splitext(image_key)
+        content_type = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp'
+        }.get(file_extension.lower(), 'application/octet-stream')
+
+        # Generate ETag
+        etag = hashlib.md5(cropped_image_data).hexdigest()
+
+        # Set cache control (1 hour)
+        cache_control = "public, max-age=3600"
+
+        # Return the cropped image data with caching headers
+        return Response(
+            content=cropped_image_data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": cache_control,
+                "ETag": etag
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/watermark/{image_key}")
 async def watermark_image_endpoint(
@@ -85,41 +147,44 @@ async def watermark_image_endpoint(
     padx: int = Query(0, ge=0, le=4096, description="Horizontal padding between watermarks"),
     pady: int = Query(0, ge=0, le=4096, description="Vertical padding between watermarks")
 ):
-    s3_config = S3Config()
-    s3_client = get_s3_client()
+    try:
+        s3_config = S3Config()
+        s3_client = get_s3_client()
 
-    # Download image from S3
-    image_data = download_image_from_s3(s3_client, s3_config.bucket_name, image_key)
+        # Download image from S3
+        image_data = download_image_from_s3(s3_client, s3_config.bucket_name, image_key)
 
-    # Add watermark
-    watermarked_image_data = add_watermark(
-        image_data, text, t, g, x, y, voffset, fill, padx, pady
-    )
+        # Add watermark
+        watermarked_image_data = add_watermark(
+            image_data, text, t, g, x, y, voffset, fill, padx, pady
+        )
 
-    # Determine content type based on file extension
-    _, file_extension = os.path.splitext(image_key)
-    content_type = {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.webp': 'image/webp'
-    }.get(file_extension.lower(), 'application/octet-stream')
+        # Determine content type based on file extension
+        _, file_extension = os.path.splitext(image_key)
+        content_type = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp'
+        }.get(file_extension.lower(), 'application/octet-stream')
 
-    # Generate ETag
-    etag = hashlib.md5(watermarked_image_data).hexdigest()
+        # Generate ETag
+        etag = hashlib.md5(watermarked_image_data).hexdigest()
 
-    # Set cache control (1 hour)
-    cache_control = "public, max-age=3600"
+        # Set cache control (1 hour)
+        cache_control = "public, max-age=3600"
 
-    # Return the watermarked image data with caching headers
-    return Response(
-        content=watermarked_image_data,
-        media_type=content_type,
-        headers={
-            "Cache-Control": cache_control,
-            "ETag": etag
-        }
-    )
+        # Return the watermarked image data with caching headers
+        return Response(
+            content=watermarked_image_data,
+            media_type=content_type,
+            headers={
+                "Cache-Control": cache_control,
+                "ETag": etag
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
