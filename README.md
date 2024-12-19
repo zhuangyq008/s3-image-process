@@ -1,6 +1,6 @@
 # s3-image-process
 
-This project implements an API for resizing, cropping, and watermarking images stored in an S3 bucket using FastAPI.
+This project implements an API for resizing, cropping, watermarking, and auto-orienting images stored in an S3 bucket using FastAPI.
 
 ## Project Structure
 
@@ -13,6 +13,7 @@ This project implements an API for resizing, cropping, and watermarking images s
 │   ├── s3_operations.py
 │   ├── watermark.py
 │   ├── format_converter.py
+│   ├── auto_orient.py
 │   ├── font/
 │   │   └── 华文楷体.ttf
 │   ├── requirements.txt
@@ -82,6 +83,9 @@ The API provides a unified endpoint for image processing with operation chaining
 #### 1. Basic Operations
 
 ```bash
+# Auto-orient image based on EXIF data
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1" --output result.jpg
+
 # Resize to 50% of original size
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50" --output result.jpg
 
@@ -95,17 +99,27 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_�
 #### 2. Chained Operations
 
 ```bash
-# Resize and crop
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_1000,h_800/crop,w_500,h_300,g_center" --output result.jpg
+# Auto-orient and resize
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_1000,h_800" --output result.jpg
 
-# Resize and add watermark
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/watermark,text_版权所有,g_se" --output result.jpg
+# Auto-orient, resize and add watermark
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_800,h_600/watermark,text_版权所有,g_se" --output result.jpg
 
-# Complete chain: resize, crop, and watermark
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se" --output result.jpg
+# Complete chain: auto-orient, resize, crop, and watermark
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se" --output result.jpg
 ```
 
 ## API Parameters
+
+### Operation: auto-orient
+
+- Value: Auto-orientation mode
+  - `0`: Keep original orientation (default)
+  - `1`: Apply auto-orientation based on EXIF data
+
+Example: `auto-orient,1`
+
+Note: If the original image has no EXIF orientation data, the auto-orient operation will have no effect.
 
 ### Operation: resize
 
