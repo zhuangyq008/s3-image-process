@@ -12,6 +12,7 @@ from image_cropper import crop_image, CropGravity
 from s3_operations import S3Config, get_s3_client, download_image_from_s3
 from watermark import add_watermark
 from format_converter import convert_format, ImageFormat
+from auto_orient import auto_orient_image
 
 # Configuration class
 class ImageProcessingConfig(BaseModel):
@@ -28,7 +29,13 @@ def parse_operation(operation_str: str) -> tuple[str, dict]:
     params = {}
     
     for param in parts[1:]:
-        if '_' in param:
+        if operation == 'auto-orient':
+            # Special handling for auto-orient parameter
+            try:
+                params['auto'] = int(param)
+            except ValueError:
+                raise ValueError("auto-orient parameter must be 0 or 1")
+        elif '_' in param:
             key, value = param.split('_')
             # Convert numeric values
             try:
@@ -82,7 +89,14 @@ async def process_image(
             for operation_str in operation_chain:
                 operation, params = parse_operation(operation_str)
                 
-                if operation == 'resize':
+                if operation == 'auto-orient':
+                    # Convert parameters to match auto_orient_image expectations
+                    orient_params = {
+                        'auto': params.get('auto', 0)
+                    }
+                    current_image_data = auto_orient_image(current_image_data, orient_params)
+                
+                elif operation == 'resize':
                     # Convert parameters to match resize_image expectations
                     resize_params = {}
                     if 'p' in params:
@@ -166,6 +180,15 @@ async def process_image(
 async def favicon():
     return Response(content=b"")
 
+@app.get("/auto-orient/{image_key}")
+async def auto_orient_image_endpoint(
+    image_key: str,
+    auto: int = Query(1, ge=0, le=1, description="Auto-orient mode (0: keep original, 1: auto-orient)")
+):
+    """Apply auto-orientation to image based on EXIF data"""
+    operations = f"auto-orient,{auto}"
+    return await process_image(image_key, operations)
+
 @app.get("/format/{image_key}")
 async def format_image_endpoint(
     image_key: str,
@@ -176,7 +199,6 @@ async def format_image_endpoint(
     operations = f"format,f_{f},q_{q}"
     return await process_image(image_key, operations)
 
-# Keep the original endpoints for backward compatibility
 @app.get("/resize/{image_key}")
 async def resize_image_endpoint(
     image_key: str,
