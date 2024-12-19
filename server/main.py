@@ -7,21 +7,22 @@ from typing import Optional
 from PIL import Image
 import io
 
-from image_processor import resize_image, ResizeMode
+from image_resizer import resize_image, ResizeMode
 from image_cropper import crop_image, CropGravity
 from s3_operations import S3Config, get_s3_client, download_image_from_s3
 from watermark import add_watermark
+from format_converter import convert_format, ImageFormat
 
 # Configuration class
 class ImageProcessingConfig(BaseModel):
     max_file_size: int = 20 * 1024 * 1024  # 20MB
-    allowed_formats: list = ["jpg", "jpeg", "png", "webp"]
+    allowed_formats: list = ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff"]
 
 # FastAPI app
 app = FastAPI()
 
 def parse_operation(operation_str: str) -> tuple[str, dict]:
-    """Parse operation string like 'resize,p_50' into (operation, params)"""
+    """Parse operation string like 'resize,p_50' or 'format,png' into (operation, params)"""
     parts = operation_str.split(',')
     operation = parts[0]
     params = {}
@@ -35,8 +36,25 @@ def parse_operation(operation_str: str) -> tuple[str, dict]:
             except ValueError:
                 pass
             params[key] = value
+        else:
+            # Handle direct format specification (e.g., 'format,png' instead of 'format,f_png')
+            if operation == 'format':
+                params['f'] = param
     
     return operation, params
+
+def get_content_type(format_str: str) -> str:
+    """Get the correct content type for a given format"""
+    format_map = {
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'webp': 'image/webp',
+        'bmp': 'image/bmp',
+        'gif': 'image/gif',
+        'tiff': 'image/tiff'
+    }
+    return format_map.get(format_str.lower(), 'image/jpeg')
 
 @app.get("/image/{image_key}")
 async def process_image(
@@ -45,7 +63,7 @@ async def process_image(
 ):
     """
     Process an image with chained operations.
-    Example: /image/example.jpg?operations=resize,p_50/crop,w_200,h_200/watermark,text_Copyright,g_se
+    Example: /image/example.jpg?operations=resize,p_50/crop,w_200,h_200/watermark,text_Copyright,g_se/format,png
     """
     try:
         s3_config = S3Config()
@@ -54,6 +72,7 @@ async def process_image(
         # Download image from S3
         image_data = download_image_from_s3(s3_client, s3_config.bucket_name, image_key)
         current_image_data = image_data
+        content_type = None
 
         # Process operations if provided
         if operations:
@@ -102,20 +121,27 @@ async def process_image(
                         padx=params.get('padx', 0),
                         pady=params.get('pady', 0)
                     )
+                
+                elif operation == 'format':
+                    # Convert parameters to match convert_format expectations
+                    format_params = {
+                        'f': params.get('f', 'jpg'),
+                        'q': params.get('q', 85)
+                    }
+                    current_image_data = convert_format(current_image_data, format_params)
+                    # Set content type based on the target format
+                    content_type = get_content_type(format_params['f'])
+                
                 else:
                     raise HTTPException(
                         status_code=400,
                         detail=f"Unknown operation: {operation}"
                     )
 
-        # Determine content type based on file extension
-        _, file_extension = os.path.splitext(image_key)
-        content_type = {
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.png': 'image/png',
-            '.webp': 'image/webp'
-        }.get(file_extension.lower(), 'application/octet-stream')
+        # If no format operation was specified, determine content type from file extension
+        if content_type is None:
+            _, file_extension = os.path.splitext(image_key)
+            content_type = get_content_type(file_extension[1:] if file_extension else 'jpeg')
 
         # Generate ETag
         etag = hashlib.md5(current_image_data).hexdigest()
@@ -139,6 +165,16 @@ async def process_image(
 @app.get("/favicon.ico", status_code=status.HTTP_204_NO_CONTENT)
 async def favicon():
     return Response(content=b"")
+
+@app.get("/format/{image_key}")
+async def format_image_endpoint(
+    image_key: str,
+    f: ImageFormat = Query(..., description="Target format (jpg, png, webp, etc.)"),
+    q: int = Query(85, ge=1, le=100, description="Quality for lossy formats")
+):
+    """Convert image to specified format"""
+    operations = f"format,f_{f},q_{q}"
+    return await process_image(image_key, operations)
 
 # Keep the original endpoints for backward compatibility
 @app.get("/resize/{image_key}")

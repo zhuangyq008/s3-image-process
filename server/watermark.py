@@ -28,7 +28,8 @@ def add_watermark(image_data, text, t=100, g='se', x=10, y=10, voffset=0, fill=0
     
     # Calculate font size if not provided (proportional to image size)
     if size is None:
-        size = min(image.width, image.height) // 30
+        # Increased default size for better visibility
+        size = min(image.width, image.height) // 20  # Changed from 30 to 20 for larger text
     
     # Use the provided Chinese font
     font_path = os.path.join(os.path.dirname(__file__), '华文楷体.ttf')
@@ -60,18 +61,20 @@ def add_watermark(image_data, text, t=100, g='se', x=10, y=10, voffset=0, fill=0
     if g in ['west', 'center', 'east']:
         position = (position[0], position[1] + voffset)
     
-    # Add semi-transparent background for better visibility
-    padding = size // 4
+    # Add more opaque background for better visibility
+    padding = size // 3  # Increased padding
     background_box = (
         position[0] - padding,
         position[1] - padding,
         position[0] + text_width + padding,
         position[1] + text_height + padding
     )
-    draw.rectangle(background_box, fill=(0, 0, 0, int(t * 1.275)))  # 50% of text opacity
+    # More opaque background (changed from 1.275 to 2.0)
+    draw.rectangle(background_box, fill=(0, 0, 0, int(min(t * 2.0, 200))))
     
-    # Draw the text
-    draw.text(position, text, font=font, fill=(255, 255, 255, int(t * 2.55)))
+    # Draw the text with increased opacity
+    # Using higher opacity for text (changed from 2.55 to 3.0)
+    draw.text(position, text, font=font, fill=(255, 255, 255, int(min(t * 3.0, 255))))
     
     # Composite the watermark with the image
     output = Image.alpha_composite(image.convert('RGBA'), watermark)
@@ -87,8 +90,8 @@ def add_watermark(image_data, text, t=100, g='se', x=10, y=10, voffset=0, fill=0
                     i + text_width + padding,
                     j + text_height + padding
                 )
-                draw.rectangle(background_box, fill=(0, 0, 0, int(t * 1.275)))
-                draw.text((i, j), text, font=font, fill=(255, 255, 255, int(t * 2.55)))
+                draw.rectangle(background_box, fill=(0, 0, 0, int(min(t * 2.0, 200))))
+                draw.text((i, j), text, font=font, fill=(255, 255, 255, int(min(t * 3.0, 255))))
         output = Image.alpha_composite(output, watermark)
     
     # Convert back to RGB (removing alpha channel)
