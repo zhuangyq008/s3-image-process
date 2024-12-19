@@ -12,6 +12,9 @@ This project implements an API for resizing, cropping, and watermarking images s
 │   ├── image_cropper.py
 │   ├── s3_operations.py
 │   ├── watermark.py
+│   ├── format_converter.py
+│   ├── font/
+│   │   └── 华文楷体.ttf
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── cloudformation.yaml
@@ -68,104 +71,61 @@ The server will start running on `http://127.0.0.1:8000`. You can access the API
 
 ## API Usage
 
-The API now returns the processed image directly, instead of an S3 key. Here are some use cases and example curl commands:
+The API provides a unified endpoint for image processing with operation chaining:
 
-### Resize API
-
-#### 1. Resize an image proportionally to 50% of its original size
-
-```bash
-curl -X GET "http://127.0.0.1:8000/resize/example.jpg?p=50" --output resized_image.jpg
+```
+/image/{image_key}?operations=operation1,param1_value1/operation2,param1_value1,param2_value2
 ```
 
-#### 2. Resize an image to a specific width (800px) while maintaining aspect ratio
+### Example Usage
+
+#### 1. Basic Operations
 
 ```bash
-curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&m=lfit" --output resized_image.jpg
+# Resize to 50% of original size
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50" --output result.jpg
+
+# Crop to 800x600 from center
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600,g_center" --output result.jpg
+
+# Add Chinese watermark
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_版权所有,g_se" --output result.jpg
 ```
 
-#### 3. Resize an image to fit within a 800x600 box, maintaining aspect ratio
+#### 2. Chained Operations
 
 ```bash
-curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=lfit" --output resized_image.jpg
-```
+# Resize and crop
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_1000,h_800/crop,w_500,h_300,g_center" --output result.jpg
 
-#### 4. Resize an image to cover a 800x600 area and crop the excess
+# Resize and add watermark
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/watermark,text_版权所有,g_se" --output result.jpg
 
-```bash
-curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=fill" --output resized_image.jpg
-```
-
-#### 5. Resize an image to fit within a 800x600 box and pad with transparency
-
-```bash
-curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=pad" --output resized_image.jpg
-```
-
-#### 6. Force resize an image to exactly 800x600, ignoring aspect ratio
-
-```bash
-curl -X GET "http://127.0.0.1:8000/resize/example.jpg?w=800&h=600&m=fixed" --output resized_image.jpg
-```
-
-#### 7. Resize an image to 150% of its original size
-
-```bash
-curl -X GET "http://127.0.0.1:8000/resize/example.jpg?p=150" --output resized_image.jpg
-```
-
-### Crop API
-
-#### 1. Crop an image to 800x600 from the center
-
-```bash
-curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=center" --output cropped_image.jpg
-```
-
-#### 2. Crop an image from the top-left corner with offset
-
-```bash
-curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=nw&x=100&y=50" --output cropped_image.jpg
-```
-
-#### 3. Crop and scale the result to 150%
-
-```bash
-curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=center&p=150" --output cropped_image.jpg
-```
-
-#### 4. Crop from the bottom-right corner
-
-```bash
-curl -X GET "http://127.0.0.1:8000/crop/example.jpg?w=800&h=600&g=se" --output cropped_image.jpg
-```
-
-### Watermark API
-
-#### Add a watermark to an image
-
-```bash
-curl -X GET "http://127.0.0.1:8000/watermark/example.jpg?text=Copyright&t=50&g=se&x=20&y=20" --output watermarked_image.jpg
+# Complete chain: resize, crop, and watermark
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se" --output result.jpg
 ```
 
 ## API Parameters
 
-### Resize API Parameters
+### Operation: resize
 
-- `image_key`: The key of the image in the S3 bucket (specified as a path variable)
 - `p`: Percentage for proportional scaling (1-1000)
 - `w`: Target width
 - `h`: Target height
-- `m`: Resize mode (lfit, mfit, fill, pad, fixed)
+- `m`: Resize mode
+  - `lfit`: Fit within dimensions (default)
+  - `mfit`: Minimum fit
+  - `fill`: Fill and crop
+  - `pad`: Pad with transparency
+  - `fixed`: Force exact dimensions
 
-### Crop API Parameters
+### Operation: crop
 
-- `image_key`: The key of the image in the S3 bucket (specified as a path variable)
-- `w`: Crop width (optional)
-- `h`: Crop height (optional)
+- `w`: Crop width
+- `h`: Crop height
 - `x`: X-axis offset (default: 0)
 - `y`: Y-axis offset (default: 0)
-- `g`: Gravity point for cropping (default: nw)
+- `g`: Gravity point
   - `nw`: Left top
   - `north`: Center top
   - `ne`: Right top
@@ -177,18 +137,37 @@ curl -X GET "http://127.0.0.1:8000/watermark/example.jpg?text=Copyright&t=50&g=s
   - `se`: Right bottom
 - `p`: Scale percentage after cropping (1-200, default: 100)
 
-### Watermark API Parameters
+### Operation: watermark
 
-- `image_key`: The key of the image in the S3 bucket (specified as a path variable)
-- `text`: Watermark text (required)
-- `t`: Transparency of the watermark (0-100, default: 100)
-- `g`: Position of the watermark (nw, north, ne, west, center, east, sw, south, se; default: se)
+- `text`: Watermark text (supports UTF-8, including Chinese)
+- `t`: Transparency (0-100, default: 100)
+- `g`: Position (nw, north, ne, west, center, east, sw, south, se; default: se)
 - `x`: Horizontal offset (0-4096, default: 10)
 - `y`: Vertical offset (0-4096, default: 10)
 - `voffset`: Vertical offset for center alignments (-1000 to 1000, default: 0)
-- `fill`: Fill the image with watermark (0 or 1, default: 0)
+- `fill`: Fill image with watermark (0 or 1, default: 0)
 - `padx`: Horizontal padding between watermarks (0-4096, default: 0)
 - `pady`: Vertical padding between watermarks (0-4096, default: 0)
+- `size`: Font size (optional, auto-calculated if not specified)
+
+### Watermark Features
+
+1. Chinese Text Support:
+   - Built-in support for Chinese characters using 华文楷体.ttf
+   - Clear and readable text rendering
+   - Automatic font size scaling based on image dimensions
+
+2. Enhanced Visibility:
+   - Semi-transparent background for better contrast
+   - Optimized text opacity
+   - Increased padding around text
+   - Default size of 1/20 of image's smaller dimension
+
+3. Best Practices:
+   - For maximum clarity, use default transparency (t=100)
+   - Position away from busy image areas (g=se is default)
+   - For small images or when text is unclear, specify a larger size parameter
+   - Use concise text for better readability
 
 ## Caching
 
