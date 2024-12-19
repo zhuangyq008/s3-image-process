@@ -31,8 +31,8 @@ def add_watermark(image_data, text, t=100, g='se', x=10, y=10, voffset=0, fill=0
         # Increased default size for better visibility
         size = min(image.width, image.height) // 20  # Changed from 30 to 20 for larger text
     
-    # Use the provided Chinese font
-    font_path = os.path.join(os.path.dirname(__file__), '华文楷体.ttf')
+    # Use the provided Chinese font from the font directory
+    font_path = os.path.join(os.path.dirname(__file__), 'font', '华文楷体.ttf')
     try:
         font = ImageFont.truetype(font_path, size)
     except Exception:
@@ -61,7 +61,7 @@ def add_watermark(image_data, text, t=100, g='se', x=10, y=10, voffset=0, fill=0
     if g in ['west', 'center', 'east']:
         position = (position[0], position[1] + voffset)
     
-    # Add more opaque background for better visibility
+    # Add semi-transparent background for better visibility
     padding = size // 3  # Increased padding
     background_box = (
         position[0] - padding,
