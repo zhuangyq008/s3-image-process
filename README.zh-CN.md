@@ -1,6 +1,6 @@
 # s3-image-process
 
-本项目使用 FastAPI 实现了一个 API，用于处理存储在 S3 存储桶中的图片，支持调整大小、裁剪、添加水印和自动旋转等功能。
+本项目使用 FastAPI 实现了一个 API，用于处理存储在 S3 存储桶中的图片，支持调整大小、裁剪、添加水印、自动旋转和质量变换等功能。
 
 ## 项目结构
 
@@ -14,6 +14,7 @@
 │   ├── watermark.py
 │   ├── format_converter.py
 │   ├── auto_orient.py
+│   ├── quality.py
 │   ├── font/
 │   │   └── 华文楷体.ttf
 │   ├── requirements.txt
@@ -90,6 +91,9 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600
 
 # 添加中文水印
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_版权所有,g_se" --output result.jpg
+
+# 调整图片质量
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
 ```
 
 #### 2. 链式操作
@@ -98,11 +102,11 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_�
 # 自动旋转并调整大小
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_1000,h_800" --output result.jpg
 
-# 自动旋转、调整大小并添加水印
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_800,h_600/watermark,text_版权所有,g_se" --output result.jpg
+# 调整大小并压缩质量
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/quality,q_85" --output result.jpg
 
-# 完整链式操作：自动旋转、调整大小、裁剪和添加水印
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se" --output result.jpg
+# 完整链式操作：自动旋转、调整大小、裁剪、添加水印和质量压缩
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se/quality,q_85" --output result.jpg
 ```
 
 ## API参数说明
@@ -159,6 +163,33 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/re
 - `padx`：水印之间的水平间距（0-4096，默认：0）
 - `pady`：水印之间的垂直间距（0-4096，默认：0）
 - `size`：字体大小（可选，默认自动计算）
+
+### 操作：quality（质量变换）
+
+- 参数：
+  - `q`：相对质量参数（1-100）
+    - 按指定百分比对图片进行质量压缩
+    - 适用于JPG格式的相对质量调整
+    - 对于WebP格式，效果等同于绝对质量参数
+  - `Q`：绝对质量参数（1-100）
+    - 设置固定的质量值
+    - 仅支持JPG和WebP格式
+    - 当原图质量高于目标质量时，压缩至目标质量
+    - 当原图质量低于目标质量时，保持原图质量不变
+
+注意：必须指定相对质量(q)或绝对质量(Q)其中之一，不能同时使用。
+
+使用示例：
+```bash
+# 使用相对质量参数（压缩到80%）
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
+
+# 使用绝对质量参数（设置为90）
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,Q_90" --output result.jpg
+
+# 与其他操作链式调用
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800/quality,q_85" --output result.jpg
+```
 
 ### 水印功能特点
 

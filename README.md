@@ -1,6 +1,6 @@
 # s3-image-process
 
-This project implements an API for resizing, cropping, watermarking, and auto-orienting images stored in an S3 bucket using FastAPI.
+This project implements an API for resizing, cropping, watermarking, auto-orienting, and quality transforming images stored in an S3 bucket using FastAPI.
 
 ## Project Structure
 
@@ -14,6 +14,7 @@ This project implements an API for resizing, cropping, watermarking, and auto-or
 │   ├── watermark.py
 │   ├── format_converter.py
 │   ├── auto_orient.py
+│   ├── quality.py
 │   ├── font/
 │   │   └── 华文楷体.ttf
 │   ├── requirements.txt
@@ -66,10 +67,6 @@ This project implements an API for resizing, cropping, watermarking, and auto-or
 
 The server will start running on `http://127.0.0.1:8000`. You can access the API documentation at `http://127.0.0.1:8000/docs`.
 
-### Production Deployment
-
-[Keep the existing Docker and CloudFormation instructions]
-
 ## API Usage
 
 The API provides a unified endpoint for image processing with operation chaining:
@@ -94,6 +91,9 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600
 
 # Add Chinese watermark
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_版权所有,g_se" --output result.jpg
+
+# Adjust image quality
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
 ```
 
 #### 2. Chained Operations
@@ -102,11 +102,11 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_�
 # Auto-orient and resize
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_1000,h_800" --output result.jpg
 
-# Auto-orient, resize and add watermark
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_800,h_600/watermark,text_版权所有,g_se" --output result.jpg
+# Resize and compress quality
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/quality,q_85" --output result.jpg
 
-# Complete chain: auto-orient, resize, crop, and watermark
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se" --output result.jpg
+# Complete chain: auto-orient, resize, crop, watermark, and quality compression
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se/quality,q_85" --output result.jpg
 ```
 
 ## API Parameters
@@ -163,6 +163,33 @@ Note: If the original image has no EXIF orientation data, the auto-orient operat
 - `padx`: Horizontal padding between watermarks (0-4096, default: 0)
 - `pady`: Vertical padding between watermarks (0-4096, default: 0)
 - `size`: Font size (optional, auto-calculated if not specified)
+
+### Operation: quality
+
+- Parameters:
+  - `q`: Relative quality (1-100)
+    - Compresses the image by the specified percentage
+    - Suitable for JPG format relative quality adjustment
+    - For WebP format, behaves the same as absolute quality
+  - `Q`: Absolute quality (1-100)
+    - Sets a fixed quality value
+    - Only supports JPG and WebP formats
+    - When original quality is higher than target, compresses to target quality
+    - When original quality is lower than target, maintains original quality
+
+Note: You must specify either relative (q) or absolute (Q) quality, but not both.
+
+Example usage:
+```bash
+# Apply relative quality compression (80%)
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
+
+# Set absolute quality value (90)
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,Q_90" --output result.jpg
+
+# Chain with other operations
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800/quality,q_85" --output result.jpg
+```
 
 ### Watermark Features
 

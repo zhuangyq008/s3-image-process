@@ -13,6 +13,7 @@ from s3_operations import S3Config, get_s3_client, download_image_from_s3
 from watermark import add_watermark
 from format_converter import convert_format, ImageFormat
 from auto_orient import auto_orient_image
+from quality import transform_quality
 
 # Configuration class
 class ImageProcessingConfig(BaseModel):
@@ -145,6 +146,15 @@ async def process_image(
                     current_image_data = convert_format(current_image_data, format_params)
                     # Set content type based on the target format
                     content_type = get_content_type(format_params['f'])
+                
+                elif operation == 'quality':
+                    # Convert parameters to match transform_quality expectations
+                    quality_params = {}
+                    if 'q' in params:
+                        quality_params['q'] = params['q']
+                    if 'Q' in params:
+                        quality_params['Q'] = params['Q']
+                    current_image_data = transform_quality(current_image_data, quality_params)
                 
                 else:
                     raise HTTPException(
@@ -282,6 +292,27 @@ async def watermark_image_endpoint(
         params.append(f"pady_{pady}")
     
     operations = f"watermark,{','.join(params)}"
+    return await process_image(image_key, operations)
+
+@app.get("/quality/{image_key}")
+async def quality_image_endpoint(
+    image_key: str,
+    q: Optional[int] = Query(None, ge=1, le=100, description="Relative quality (1-100)"),
+    Q: Optional[int] = Query(None, ge=1, le=100, description="Absolute quality (1-100)")
+):
+    """Transform image quality using relative or absolute quality parameters"""
+    if q is not None and Q is not None:
+        raise HTTPException(status_code=400, detail="Cannot specify both relative and absolute quality")
+    if q is None and Q is None:
+        raise HTTPException(status_code=400, detail="Must specify either relative (q) or absolute (Q) quality")
+    
+    params = []
+    if q is not None:
+        params.append(f"q_{q}")
+    if Q is not None:
+        params.append(f"Q_{Q}")
+    
+    operations = f"quality,{','.join(params)}"
     return await process_image(image_key, operations)
 
 if __name__ == "__main__":
