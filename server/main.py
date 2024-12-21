@@ -38,11 +38,12 @@ def parse_operation(operation_str: str) -> tuple[str, dict]:
                 raise ValueError("auto-orient parameter must be 0 or 1")
         elif '_' in param:
             key, value = param.split('_')
-            # Convert numeric values
-            try:
-                value = int(value)
-            except ValueError:
-                pass
+            # Keep color and text as strings, try to convert others to int
+            if key not in {'color', 'text'}:
+                try:
+                    value = int(value)
+                except ValueError:
+                    pass
             params[key] = value
         else:
             # Handle direct format specification (e.g., 'format,png' instead of 'format,f_png')
@@ -91,14 +92,12 @@ async def process_image(
                 operation, params = parse_operation(operation_str)
                 
                 if operation == 'auto-orient':
-                    # Convert parameters to match auto_orient_image expectations
                     orient_params = {
                         'auto': params.get('auto', 0)
                     }
                     current_image_data = auto_orient_image(current_image_data, orient_params)
                 
                 elif operation == 'resize':
-                    # Convert parameters to match resize_image expectations
                     resize_params = {}
                     if 'p' in params:
                         resize_params['p'] = params['p']
@@ -111,7 +110,6 @@ async def process_image(
                     current_image_data = resize_image(current_image_data, resize_params)
                     
                 elif operation == 'crop':
-                    # Convert parameters to match crop_image expectations
                     crop_params = {
                         'w': params.get('w'),
                         'h': params.get('h'),
@@ -123,32 +121,37 @@ async def process_image(
                     current_image_data = crop_image(current_image_data, crop_params)
                     
                 elif operation == 'watermark':
-                    # Convert parameters to match add_watermark expectations
-                    current_image_data = add_watermark(
-                        current_image_data,
-                        text=params.get('text', 'Watermark'),
-                        t=params.get('t', 100),
-                        g=params.get('g', 'se'),
-                        x=params.get('x', 10),
-                        y=params.get('y', 10),
-                        voffset=params.get('voffset', 0),
-                        fill=params.get('fill', 0),
-                        padx=params.get('padx', 0),
-                        pady=params.get('pady', 0)
-                    )
+                    # Ensure color is properly formatted
+                    color = params.get('color', '000000')
+                    if color and len(color) < 6:
+                        color = color.zfill(6)  # Pad with leading zeros if needed
+                        
+                    watermark_params = {
+                        'text': params.get('text', 'Watermark'),
+                        'color': color,
+                        't': params.get('t', 100),
+                        'g': params.get('g', 'se'),
+                        'x': params.get('x', 10),
+                        'y': params.get('y', 10),
+                        'voffset': params.get('voffset', 0),
+                        'fill': params.get('fill', 0),
+                        'padx': params.get('padx', 0),
+                        'pady': params.get('pady', 0),
+                        'size': params.get('size', 40),
+                        'shadow': params.get('shadow', 0),
+                        'rotate': params.get('rotate', 0)
+                    }
+                    current_image_data = add_watermark(current_image_data, **watermark_params)
                 
                 elif operation == 'format':
-                    # Convert parameters to match convert_format expectations
                     format_params = {
                         'f': params.get('f', 'jpg'),
                         'q': params.get('q', 85)
                     }
                     current_image_data = convert_format(current_image_data, format_params)
-                    # Set content type based on the target format
                     content_type = get_content_type(format_params['f'])
                 
                 elif operation == 'quality':
-                    # Convert parameters to match transform_quality expectations
                     quality_params = {}
                     if 'q' in params:
                         quality_params['q'] = params['q']
@@ -190,48 +193,51 @@ async def process_image(
 async def favicon():
     return Response(content=b"")
 
-@app.get("/auto-orient/{image_key}")
-async def auto_orient_image_endpoint(
+@app.get("/watermark/{image_key}")
+async def watermark_image_endpoint(
     image_key: str,
-    auto: int = Query(1, ge=0, le=1, description="Auto-orient mode (0: keep original, 1: auto-orient)")
+    text: str = Query(..., description="Watermark text"),
+    color: str = Query("000000", description="Text color in hex format (e.g., FF0000 for red)"),
+    t: int = Query(100, ge=0, le=100, description="Transparency of the watermark"),
+    g: str = Query("se", description="Position of the watermark"),
+    x: int = Query(10, ge=0, le=4096, description="Horizontal offset"),
+    y: int = Query(10, ge=0, le=4096, description="Vertical offset"),
+    voffset: int = Query(0, ge=-1000, le=1000, description="Vertical offset for center alignments"),
+    fill: int = Query(0, ge=0, le=1, description="Fill the image with watermark"),
+    padx: int = Query(0, ge=0, le=4096, description="Horizontal padding between watermarks"),
+    pady: int = Query(0, ge=0, le=4096, description="Vertical padding between watermarks"),
+    size: int = Query(40, gt=0, le=1000, description="Font size"),
+    shadow: int = Query(0, ge=0, le=100, description="Shadow transparency"),
+    rotate: int = Query(0, ge=0, le=360, description="Rotation angle")
 ):
-    """Apply auto-orientation to image based on EXIF data"""
-    operations = f"auto-orient,{auto}"
-    return await process_image(image_key, operations)
-
-@app.get("/format/{image_key}")
-async def format_image_endpoint(
-    image_key: str,
-    f: ImageFormat = Query(..., description="Target format (jpg, png, webp, etc.)"),
-    q: int = Query(85, ge=1, le=100, description="Quality for lossy formats")
-):
-    """Convert image to specified format"""
-    operations = f"format,f_{f},q_{q}"
-    return await process_image(image_key, operations)
-
-@app.get("/resize/{image_key}")
-async def resize_image_endpoint(
-    image_key: str,
-    p: Optional[int] = Query(None, ge=1, le=1000, description="Percentage for proportional scaling"),
-    w: Optional[int] = Query(None, gt=0, description="Target width"),
-    h: Optional[int] = Query(None, gt=0, description="Target height"),
-    m: Optional[ResizeMode] = Query(ResizeMode.LFIT, description="Resize mode")
-):
-    operations = []
-    if p is not None:
-        operations.append(f"resize,p_{p}")
-    else:
-        params = []
-        if w is not None:
-            params.append(f"w_{w}")
-        if h is not None:
-            params.append(f"h_{h}")
-        if m is not None:
-            params.append(f"m_{m}")
-        if params:
-            operations.append(f"resize,{','.join(params)}")
+    params = [f"text_{text}"]
+    if color != "000000":
+        params.append(f"color_{color}")
+    if t != 100:
+        params.append(f"t_{t}")
+    if g != "se":
+        params.append(f"g_{g}")
+    if x != 10:
+        params.append(f"x_{x}")
+    if y != 10:
+        params.append(f"y_{y}")
+    if voffset != 0:
+        params.append(f"voffset_{voffset}")
+    if fill != 0:
+        params.append(f"fill_{fill}")
+    if padx != 0:
+        params.append(f"padx_{padx}")
+    if pady != 0:
+        params.append(f"pady_{pady}")
+    if size != 40:
+        params.append(f"size_{size}")
+    if shadow != 0:
+        params.append(f"shadow_{shadow}")
+    if rotate != 0:
+        params.append(f"rotate_{rotate}")
     
-    return await process_image(image_key, '/'.join(operations))
+    operations = f"watermark,{','.join(params)}"
+    return await process_image(image_key, operations)
 
 @app.get("/crop/{image_key}")
 async def crop_image_endpoint(
@@ -258,40 +264,6 @@ async def crop_image_endpoint(
         params.append(f"p_{p}")
     
     operations = f"crop,{','.join(params)}"
-    return await process_image(image_key, operations)
-
-@app.get("/watermark/{image_key}")
-async def watermark_image_endpoint(
-    image_key: str,
-    text: str = Query(..., description="Watermark text"),
-    t: int = Query(100, ge=0, le=100, description="Transparency of the watermark"),
-    g: str = Query("se", description="Position of the watermark"),
-    x: int = Query(10, ge=0, le=4096, description="Horizontal offset"),
-    y: int = Query(10, ge=0, le=4096, description="Vertical offset"),
-    voffset: int = Query(0, ge=-1000, le=1000, description="Vertical offset for center alignments"),
-    fill: int = Query(0, ge=0, le=1, description="Fill the image with watermark"),
-    padx: int = Query(0, ge=0, le=4096, description="Horizontal padding between watermarks"),
-    pady: int = Query(0, ge=0, le=4096, description="Vertical padding between watermarks")
-):
-    params = [f"text_{text}"]
-    if t != 100:
-        params.append(f"t_{t}")
-    if g != "se":
-        params.append(f"g_{g}")
-    if x != 10:
-        params.append(f"x_{x}")
-    if y != 10:
-        params.append(f"y_{y}")
-    if voffset != 0:
-        params.append(f"voffset_{voffset}")
-    if fill != 0:
-        params.append(f"fill_{fill}")
-    if padx != 0:
-        params.append(f"padx_{padx}")
-    if pady != 0:
-        params.append(f"pady_{pady}")
-    
-    operations = f"watermark,{','.join(params)}"
     return await process_image(image_key, operations)
 
 @app.get("/quality/{image_key}")

@@ -89,8 +89,8 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50" --o
 # 从中心裁剪为800x600
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600,g_center" --output result.jpg
 
-# 添加中文水印
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_版权所有,g_se" --output result.jpg
+# 添加base64编码的水印文字
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_54mI5p2D5omA5pyJ,g_se" --output result.jpg
 
 # 调整图片质量
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
@@ -106,7 +106,7 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/re
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/quality,q_85" --output result.jpg
 
 # 完整链式操作：自动旋转、调整大小、裁剪、添加水印和质量压缩
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se/quality,q_85" --output result.jpg
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_54mI5p2D5omA5pyJ,g_se/quality,q_85" --output result.jpg
 ```
 
 ## API参数说明
@@ -153,7 +153,9 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/re
 
 ### 操作：watermark（水印）
 
-- `text`：水印文字（支持UTF-8，包括中文）
+- `text`：Base64编码的水印文字（支持UTF-8，包括中文）
+  - 示例："Hello World" 应编码为 "SGVsbG8gV29ybGQ"
+  - 中文文字 "版权所有" 应编码为 "54mI5p2D5omA5pyJ"
 - `t`：透明度（0-100，默认：100）
 - `g`：位置（nw, north, ne, west, center, east, sw, south, se；默认：se）
 - `x`：水平偏移（0-4096，默认：10）
@@ -197,6 +199,7 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800/qua
    - 内置支持中文字符（使用华文楷体.ttf）
    - 清晰可读的文字渲染
    - 基于图片尺寸的自动字体大小调整
+   - 支持Base64编码的文字输入以确保正确的字符处理
 
 2. 增强可见度：
    - 半透明背景提升对比度
@@ -205,6 +208,7 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800/qua
    - 默认大小为图片较小边长的1/20
 
 3. 最佳实践：
+   - 始终使用Base64编码水印文字
    - 使用默认透明度（t=100）获得最佳清晰度
    - 避开图片繁忙区域（默认g=se）
    - 对于小图片或文字不清晰时，可指定更大的size参数

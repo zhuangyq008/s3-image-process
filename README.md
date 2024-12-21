@@ -89,8 +89,8 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50" --o
 # Crop to 800x600 from center
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600,g_center" --output result.jpg
 
-# Add Chinese watermark
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_版权所有,g_se" --output result.jpg
+# Add watermark with base64 encoded text
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_SGVsbG8gV29ybGQ,g_se" --output result.jpg
 
 # Adjust image quality
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
@@ -106,7 +106,7 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/re
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/quality,q_85" --output result.jpg
 
 # Complete chain: auto-orient, resize, crop, watermark, and quality compression
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_版权所有,g_se/quality,q_85" --output result.jpg
+curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_SGVsbG8gV29ybGQ,g_se/quality,q_85" --output result.jpg
 ```
 
 ## API Parameters
@@ -153,7 +153,9 @@ Note: If the original image has no EXIF orientation data, the auto-orient operat
 
 ### Operation: watermark
 
-- `text`: Watermark text (supports UTF-8, including Chinese)
+- `text`: Base64 encoded watermark text (supports UTF-8, including Chinese)
+  - Example: "Hello World" should be encoded as "SGVsbG8gV29ybGQ"
+  - Chinese text "版权所有" should be encoded as "54mI5p2D5omA5pyJ"
 - `t`: Transparency (0-100, default: 100)
 - `g`: Position (nw, north, ne, west, center, east, sw, south, se; default: se)
 - `x`: Horizontal offset (0-4096, default: 10)
@@ -197,6 +199,7 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800/qua
    - Built-in support for Chinese characters using 华文楷体.ttf
    - Clear and readable text rendering
    - Automatic font size scaling based on image dimensions
+   - Base64 encoded text input for proper character handling
 
 2. Enhanced Visibility:
    - Semi-transparent background for better contrast
@@ -205,7 +208,8 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800/qua
    - Default size of 1/20 of image's smaller dimension
 
 3. Best Practices:
-   - For maximum clarity, use default transparency (t=100)
+   - Always encode watermark text in base64 format
+   - Use default transparency (t=100) for maximum clarity
    - Position away from busy image areas (g=se is default)
    - For small images or when text is unclear, specify a larger size parameter
    - Use concise text for better readability
