@@ -1,28 +1,64 @@
 import os
 import hashlib
+import asyncio
 from fastapi import FastAPI, Query, status, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from PIL import Image
 import io
 
+# Import existing image processing modules
 from image_resizer import resize_image, ResizeMode
 from image_cropper import crop_image, CropGravity
 from s3_operations import S3Config, get_s3_client, download_image_from_s3
 from watermark import add_watermark
-from format_converter import convert_format, ImageFormat
+from image_format_converter import convert_format, ImageFormat
 from auto_orient import auto_orient_image
 from quality import transform_quality
 
-# Configuration class
+# Import new document conversion modules
+from document_converter import (
+    document_converter,
+    InputFormat,
+    OutputFormat,
+    ConversionStatus,
+    ConversionTask
+)
+from document_operations import (
+    get_document_from_s3,
+    upload_document_to_s3,
+    upload_multiple_files_to_s3,
+    get_mime_type
+)
+from format_handlers import get_handler
+
+# Configuration classes
 class ImageProcessingConfig(BaseModel):
     max_file_size: int = 20 * 1024 * 1024  # 20MB
     allowed_formats: list = ["jpg", "jpeg", "png", "webp", "bmp", "gif", "tiff"]
 
+class DocumentConversionConfig(BaseModel):
+    max_file_size: int = 100 * 1024 * 1024  # 100MB
+    image_dpi: int = 300
+
+# Request/Response models for document conversion
+class ConversionRequest(BaseModel):
+    input_key: str
+    input_format: InputFormat
+    output_format: OutputFormat
+    output_prefix: str
+    image_dpi: Optional[int] = 300
+
+class ConversionResponse(BaseModel):
+    task_id: str
+    status: ConversionStatus
+    message: str
+
 # FastAPI app
 app = FastAPI()
 
+# Existing image processing functions
 def parse_operation(operation_str: str) -> tuple[str, dict]:
     """Parse operation string like 'resize,p_50' or 'format,png' into (operation, params)"""
     parts = operation_str.split(',')
@@ -65,6 +101,7 @@ def get_content_type(format_str: str) -> str:
     }
     return format_map.get(format_str.lower(), 'image/jpeg')
 
+# Existing image processing endpoints
 @app.get("/image/{image_key}")
 async def process_image(
     image_key: str,
@@ -193,99 +230,156 @@ async def process_image(
 async def favicon():
     return Response(content=b"")
 
-@app.get("/watermark/{image_key}")
-async def watermark_image_endpoint(
-    image_key: str,
-    text: str = Query(..., description="Watermark text"),
-    color: str = Query("000000", description="Text color in hex format (e.g., FF0000 for red)"),
-    t: int = Query(100, ge=0, le=100, description="Transparency of the watermark"),
-    g: str = Query("se", description="Position of the watermark"),
-    x: int = Query(10, ge=0, le=4096, description="Horizontal offset"),
-    y: int = Query(10, ge=0, le=4096, description="Vertical offset"),
-    voffset: int = Query(0, ge=-1000, le=1000, description="Vertical offset for center alignments"),
-    fill: int = Query(0, ge=0, le=1, description="Fill the image with watermark"),
-    padx: int = Query(0, ge=0, le=4096, description="Horizontal padding between watermarks"),
-    pady: int = Query(0, ge=0, le=4096, description="Vertical padding between watermarks"),
-    size: int = Query(40, gt=0, le=1000, description="Font size"),
-    shadow: int = Query(0, ge=0, le=100, description="Shadow transparency"),
-    rotate: int = Query(0, ge=0, le=360, description="Rotation angle")
-):
-    params = [f"text_{text}"]
-    if color != "000000":
-        params.append(f"color_{color}")
-    if t != 100:
-        params.append(f"t_{t}")
-    if g != "se":
-        params.append(f"g_{g}")
-    if x != 10:
-        params.append(f"x_{x}")
-    if y != 10:
-        params.append(f"y_{y}")
-    if voffset != 0:
-        params.append(f"voffset_{voffset}")
-    if fill != 0:
-        params.append(f"fill_{fill}")
-    if padx != 0:
-        params.append(f"padx_{padx}")
-    if pady != 0:
-        params.append(f"pady_{pady}")
-    if size != 40:
-        params.append(f"size_{size}")
-    if shadow != 0:
-        params.append(f"shadow_{shadow}")
-    if rotate != 0:
-        params.append(f"rotate_{rotate}")
-    
-    operations = f"watermark,{','.join(params)}"
-    return await process_image(image_key, operations)
+# New document conversion endpoints
+@app.post("/document/convert", response_model=ConversionResponse)
+async def convert_document(request: ConversionRequest):
+    """
+    Start an asynchronous document conversion task
+    """
+    try:
+        # Create conversion task
+        task = document_converter.create_task(
+            input_key=request.input_key,
+            input_format=request.input_format,
+            output_format=request.output_format,
+            output_prefix=request.output_prefix,
+            image_dpi=request.image_dpi
+        )
+        
+        # Start async processing
+        asyncio.create_task(process_document_conversion(task.task_id))
+        
+        return ConversionResponse(
+            task_id=task.task_id,
+            status=task.status,
+            message="Conversion task created successfully"
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/crop/{image_key}")
-async def crop_image_endpoint(
-    image_key: str,
-    w: Optional[int] = Query(None, gt=0, description="Crop width"),
-    h: Optional[int] = Query(None, gt=0, description="Crop height"),
-    x: int = Query(0, ge=0, description="X-axis offset"),
-    y: int = Query(0, ge=0, description="Y-axis offset"),
-    g: CropGravity = Query(CropGravity.NW, description="Gravity point for cropping"),
-    p: int = Query(100, ge=1, le=200, description="Scale percentage after cropping")
-):
-    params = []
-    if w is not None:
-        params.append(f"w_{w}")
-    if h is not None:
-        params.append(f"h_{h}")
-    if x != 0:
-        params.append(f"x_{x}")
-    if y != 0:
-        params.append(f"y_{y}")
-    if g != CropGravity.NW:
-        params.append(f"g_{g}")
-    if p != 100:
-        params.append(f"p_{p}")
-    
-    operations = f"crop,{','.join(params)}"
-    return await process_image(image_key, operations)
+@app.get("/document/status/{task_id}", response_model=ConversionTask)
+async def get_conversion_status(task_id: str):
+    """
+    Get the status of a document conversion task
+    """
+    task = document_converter.get_task(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task {task_id} not found"
+        )
+    return task
 
-@app.get("/quality/{image_key}")
-async def quality_image_endpoint(
-    image_key: str,
-    q: Optional[int] = Query(None, ge=1, le=100, description="Relative quality (1-100)"),
-    Q: Optional[int] = Query(None, ge=1, le=100, description="Absolute quality (1-100)")
-):
-    """Transform image quality using relative or absolute quality parameters"""
-    if q is not None and Q is not None:
-        raise HTTPException(status_code=400, detail="Cannot specify both relative and absolute quality")
-    if q is None and Q is None:
-        raise HTTPException(status_code=400, detail="Must specify either relative (q) or absolute (Q) quality")
-    
-    params = []
-    if q is not None:
-        params.append(f"q_{q}")
-    if Q is not None:
-        params.append(f"Q_{Q}")
-    
-    operations = f"quality,{','.join(params)}"
-    return await process_image(image_key, operations)
+async def process_document_conversion(task_id: str):
+    """
+    Process a document conversion task
+    """
+    task = document_converter.get_task(task_id)
+    if not task:
+        return
+        
+    try:
+        document_converter.update_task_status(task_id, ConversionStatus.PROCESSING)
+        
+        # Get S3 client and config
+        s3_config = S3Config()
+        s3_client = get_s3_client()
+        
+        # Download input document
+        input_data = get_document_from_s3(
+            s3_client,
+            s3_config.bucket_name,
+            task.input_key
+        )
+        
+        # Get appropriate format handler
+        handler = get_handler(task.input_format)
+        
+        # Process based on output format
+        if task.output_format == OutputFormat.PDF:
+            # Convert to PDF
+            output_data = handler.convert_to_pdf(input_data, task.image_dpi)
+            
+            # Upload PDF
+            output_key = f"{task.output_prefix}/output.pdf"
+            upload_document_to_s3(
+                s3_client,
+                s3_config.bucket_name,
+                output_key,
+                output_data,
+                get_mime_type('pdf')
+            )
+            
+            # Update task
+            document_converter.update_task_status(
+                task_id,
+                ConversionStatus.COMPLETED,
+                output_files=[output_key]
+            )
+            
+        elif task.output_format in {OutputFormat.PNG, OutputFormat.JPEG}:
+            # Convert to images
+            images = handler.convert_to_images(input_data, task.image_dpi)
+            
+            # Upload images
+            output_files = []
+            for filename, image_data in images:
+                output_key = f"{task.output_prefix}/{filename}"
+                upload_document_to_s3(
+                    s3_client,
+                    s3_config.bucket_name,
+                    output_key,
+                    image_data,
+                    get_mime_type(task.output_format)
+                )
+                output_files.append(output_key)
+            
+            # Update task
+            document_converter.update_task_status(
+                task_id,
+                ConversionStatus.COMPLETED,
+                output_files=output_files
+            )
+            
+        elif task.output_format == OutputFormat.TXT:
+            if task.input_format not in {
+                InputFormat.WORD,
+                InputFormat.WORD_X,
+                InputFormat.WPS,
+                InputFormat.PPT,
+                InputFormat.PPT_X
+            }:
+                raise ValueError(
+                    "Only Word and PowerPoint documents can be converted to TXT"
+                )
+            
+            # Convert to text
+            text_data = handler.convert_to_text(input_data)
+            
+            # Upload text file
+            output_key = f"{task.output_prefix}/output.txt"
+            upload_document_to_s3(
+                s3_client,
+                s3_config.bucket_name,
+                output_key,
+                text_data,
+                get_mime_type('txt')
+            )
+            
+            # Update task
+            document_converter.update_task_status(
+                task_id,
+                ConversionStatus.COMPLETED,
+                output_files=[output_key]
+            )
+            
+    except Exception as e:
+        document_converter.update_task_status(
+            task_id,
+            ConversionStatus.FAILED,
+            error_message=str(e)
+        )
 
 if __name__ == "__main__":
     import uvicorn
