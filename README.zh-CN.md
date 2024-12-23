@@ -1,6 +1,6 @@
 # s3-image-process
 
-本项目使用 FastAPI 实现了一个 API，用于处理存储在 S3 存储桶中的文档和图片，支持文档格式转换、调整大小、裁剪、添加水印、自动旋转和质量变换等功能。
+本项目使用 FastAPI 实现了一个 API，用于处理存储在 S3 存储桶中的图片，支持调整大小、裁剪、添加水印、自动旋转和质量变换等功能。
 
 ## 项目结构
 
@@ -8,9 +8,6 @@
 .
 ├── server/
 │   ├── main.py
-│   ├── document_converter.py     # 文档转换核心
-│   ├── document_operations.py    # 文档S3操作
-│   ├── format_handlers.py        # 文档格式处理器
 │   ├── image_processor.py
 │   ├── image_cropper.py
 │   ├── s3_operations.py
@@ -26,31 +23,6 @@
 ├── .gitignore
 └── README.md
 ```
-
-## 功能特点
-
-### 文档转换
-- 支持多种文档格式转换为PDF、图片或文本
-- 异步处理机制，支持任务状态跟踪
-- 可自定义S3输出路径
-- 支持高质量图片转换，可调节DPI
-
-#### 支持的输入格式
-- Word文档 (doc, docx, wps)
-- Excel表格 (xls, xlsx, csv)
-- PowerPoint演示文稿 (ppt, pptx)
-- PDF文档
-- JPEG图片
-
-#### 支持的输出格式
-- PDF（支持以图片方式生成）
-- PNG/JPEG图片
-- TXT（仅支持Word和PowerPoint文档转换为TXT格式）
-
-#### 输出规则
-- Excel文档：按表格页签生成文件夹，再按预览页面生成文件
-- 非Excel文档：按每页生成独立文件
-- PDF/TXT：统一生成单个文件
 
 ## 部署说明
 
@@ -81,20 +53,14 @@
    pip install -r requirements.txt
    ```
 
-5. 安装系统依赖（用于文档转换）：
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get update && sudo apt-get install -y libreoffice fonts-liberation libmagic1
-   ```
-
-6. 配置AWS凭证：
+5. 配置AWS凭证：
    - 在`server`目录下创建`.env`文件
    - 添加AWS凭证和S3存储桶信息：
      ```
      S3_BUCKET_NAME=your_bucket_name
      ```
 
-7. 运行FastAPI服务器：
+6. 运行FastAPI服务器：
    ```
    uvicorn main:app --reload
    ```
@@ -102,80 +68,6 @@
 服务器将在`http://127.0.0.1:8000`上运行。您可以在`http://127.0.0.1:8000/docs`访问API文档。
 
 ## API使用说明
-
-### 文档转换API
-
-API提供异步文档转换功能，具有以下特点：
-- 支持多种文档格式转换
-- 异步处理大文件
-- 可自定义输出路径
-- 任务状态跟踪
-- 可调节图片输出质量
-
-#### 1. 开始转换任务
-
-```bash
-curl -X POST "http://127.0.0.1:8000/document/convert" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input_key": "documents/sample.docx",
-    "input_format": "docx",
-    "output_format": "pdf",
-    "output_prefix": "converted/doc1",
-    "image_dpi": 300
-  }'
-```
-
-响应：
-```json
-{
-    "task_id": "uuid-task-id",
-    "status": "pending",
-    "message": "转换任务创建成功"
-}
-```
-
-#### 2. 查询转换状态
-
-```bash
-curl -X GET "http://127.0.0.1:8000/document/status/{task_id}"
-```
-
-响应：
-```json
-{
-    "task_id": "uuid-task-id",
-    "input_key": "documents/sample.docx",
-    "input_format": "docx",
-    "output_format": "pdf",
-    "output_prefix": "converted/doc1",
-    "status": "completed",
-    "created_at": "2024-03-20T10:00:00",
-    "updated_at": "2024-03-20T10:01:00",
-    "error_message": null,
-    "output_files": ["converted/doc1/output.pdf"],
-    "image_dpi": 300,
-    "expires_at": "2024-03-27T10:00:00"
-}
-```
-
-#### 文档转换参数
-
-- `input_key`：S3中的输入文件路径
-- `input_format`：输入格式，可选值：["doc", "docx", "wps", "xls", "xlsx", "csv", "ppt", "pptx", "pdf", "jpeg"]
-- `output_format`：输出格式，可选值：["pdf", "png", "jpeg", "txt"]
-- `output_prefix`：S3中的输出文件目录前缀
-- `image_dpi`：图片生成DPI（默认：300）
-
-#### 性能考虑
-
-- 最大文件大小：100MB
-- 任务信息保存期：7天
-- 处理时间：一般秒级完成，大文件可能需要几十秒
-- 异步处理机制，适合处理大文件
-- 图片DPI可通过参数调节
-
-### 图片处理API
 
 API提供了统一的图片处理端点，支持操作链式调用：
 
@@ -216,7 +108,6 @@ curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_6
 # 完整链式操作：自动旋转、调整大小、裁剪、添加水印和质量压缩
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_54mI5p2D5omA5pyJ,g_se/quality,q_85" --output result.jpg
 ```
-
 
 ## API参数说明
 

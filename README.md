@@ -1,6 +1,6 @@
 # s3-image-process
 
-This project implements an API for resizing, cropping, watermarking, auto-orienting, and quality transforming images stored in an S3 bucket using FastAPI. It also provides document format conversion capabilities.
+This project implements an API for resizing, cropping, watermarking, auto-orienting, and quality transforming images stored in an S3 bucket using FastAPI.
 
 ## Project Structure
 
@@ -8,9 +8,6 @@ This project implements an API for resizing, cropping, watermarking, auto-orient
 .
 ├── server/
 │   ├── main.py
-│   ├── document_converter.py     # Document conversion core
-│   ├── document_operations.py    # Document S3 operations
-│   ├── format_handlers.py        # Document format handlers
 │   ├── image_processor.py
 │   ├── image_cropper.py
 │   ├── s3_operations.py
@@ -56,20 +53,14 @@ This project implements an API for resizing, cropping, watermarking, auto-orient
    pip install -r requirements.txt
    ```
 
-5. Install system dependencies (for document conversion):
-   ```bash
-   # Ubuntu/Debian
-   sudo apt-get update && sudo apt-get install -y libreoffice fonts-liberation libmagic1
-   ```
-
-6. Set up your AWS credentials:
+5. Set up your AWS credentials:
    - Create a file named `.env` in the `server` directory
    - Add your AWS credentials and S3 bucket information:
      ```
      S3_BUCKET_NAME=your_bucket_name
      ```
 
-7. Run the FastAPI server:
+6. Run the FastAPI server:
    ```
    uvicorn main:app --reload
    ```
@@ -78,99 +69,17 @@ The server will start running on `http://127.0.0.1:8000`. You can access the API
 
 ## API Usage
 
-### Document Conversion API
+The API provides a unified endpoint for image processing with operation chaining:
 
-The API provides asynchronous document conversion capabilities with the following features:
+```
+/image/{image_key}?operations=operation1,param1_value1/operation2,param1_value1,param2_value2
+```
 
-- Convert various document formats to PDF, images, or text
-- Support for Word, Excel, PowerPoint, PDF, and image files
-- Customizable output paths in S3
-- Task status tracking
-- High-quality image conversion with adjustable DPI
+### Example Usage
 
-#### Supported Formats
-
-Input Formats:
-- Word (doc, docx, wps)
-- Excel (xls, xlsx, csv)
-- PowerPoint (ppt, pptx)
-- PDF
-- JPEG
-
-Output Formats:
-- PDF (supports image-based generation)
-- PNG/JPEG
-- TXT (only for Word and PowerPoint documents)
-
-#### 1. Start a Conversion Task
+#### 1. Basic Operations
 
 ```bash
-curl -X POST "http://127.0.0.1:8000/document/convert" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input_key": "documents/sample.docx",
-    "input_format": "docx",
-    "output_format": "pdf",
-    "output_prefix": "converted/doc1",
-    "image_dpi": 300
-  }'
-```
-
-Response:
-```json
-{
-    "task_id": "uuid-task-id",
-    "status": "pending",
-    "message": "Conversion task created successfully"
-}
-```
-
-#### 2. Check Conversion Status
-
-```bash
-curl -X GET "http://127.0.0.1:8000/document/status/{task_id}"
-```
-
-Response:
-```json
-{
-    "task_id": "uuid-task-id",
-    "input_key": "documents/sample.docx",
-    "input_format": "docx",
-    "output_format": "pdf",
-    "output_prefix": "converted/doc1",
-    "status": "completed",
-    "created_at": "2024-03-20T10:00:00",
-    "updated_at": "2024-03-20T10:01:00",
-    "error_message": null,
-    "output_files": ["converted/doc1/output.pdf"],
-    "image_dpi": 300,
-    "expires_at": "2024-03-27T10:00:00"
-}
-```
-
-#### Document Conversion Parameters
-
-- `input_key`: Path to the input file in S3
-- `input_format`: One of ["doc", "docx", "wps", "xls", "xlsx", "csv", "ppt", "pptx", "pdf", "jpeg"]
-- `output_format`: One of ["pdf", "png", "jpeg", "txt"]
-- `output_prefix`: Directory prefix for output files in S3
-- `image_dpi`: DPI for image generation (default: 300)
-
-#### Output Rules
-
-- Excel documents: Creates folders per sheet, then files per preview page
-- Non-Excel documents: One file per page
-- PDF/TXT output: Single consolidated file
-
-#### Performance Considerations
-
-- Maximum file size: 100MB
-- Task information retention: 7 days
-- Processing time: Generally seconds, up to a minute for large files
-- Asynchronous processing for better handling of large files
-- Image DPI adjustable via parameter
-
 # Auto-orient image based on EXIF data
 curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1" --output result.jpg
 

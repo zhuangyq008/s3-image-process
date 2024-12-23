@@ -1,29 +1,14 @@
-FROM python:3.9-slim
+FROM public.ecr.aws/docker/library/python:3.11-slim-bullseye
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    libreoffice \
-    fonts-liberation \
-    libmagic1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set working directory
 WORKDIR /app
-
-# Copy requirements first to leverage Docker cache
 COPY requirements.txt .
+COPY main.py .
+COPY image_processor.py .
+COPY image_cropper.py .
+COPY s3_operations.py .
+COPY watermark.py .
 
-# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
-
-# Create font directory if it doesn't exist
-RUN mkdir -p font
-
-# Expose port
-EXPOSE 8000
-
-# Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "main.py"]
