@@ -4,14 +4,12 @@ from fastapi import FastAPI, Query, status, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import Optional
-from PIL import Image
-import io
 
 from image_resizer import resize_image, ResizeMode
-from image_cropper import crop_image, CropGravity
+from image_cropper import crop_image
 from s3_operations import S3Config, get_s3_client, download_object_from_s3
 from image_watermark import add_watermark
-from image_format_converter import convert_format, ImageFormat
+from image_format_converter import convert_format
 from image_auto_orient import auto_orient_image
 from image_quality import transform_quality
 from doc_processor import process_document, get_task_status
