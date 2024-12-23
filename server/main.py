@@ -14,6 +14,7 @@ from image_watermark import add_watermark
 from image_format_converter import convert_format, ImageFormat
 from image_auto_orient import auto_orient_image
 from image_quality import transform_quality
+from doc_processor import process_document, get_task_status
 
 # Configuration class
 class ImageProcessingConfig(BaseModel):
@@ -188,6 +189,24 @@ async def process_image(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Document conversion routes
+@app.post("/doc/{object_key}", tags=["Document Conversion"])
+@app.get("/doc/{object_key}", tags=["Document Conversion"])
+async def convert_document_handler(
+    object_key: str,
+    operations: Optional[str] = Query(None, description="Operations to perform, e.g., convert,source_doc,target_png,pages_1,2,4-10")
+):
+    """
+    Convert document with specified operations
+    Example: /doc/example.docx?operations=convert,source_doc,target_png,pages_1,2,4-10
+    """
+    return await process_document(object_key, operations)
+
+@app.get("/doc/task/{task_id}", tags=["Document Conversion"])
+async def get_task_status_handler(task_id: str):
+    """Get document conversion task status"""
+    return await get_task_status(task_id)
 
 @app.get("/favicon.ico", status_code=status.HTTP_204_NO_CONTENT)
 async def favicon():

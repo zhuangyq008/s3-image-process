@@ -1,8 +1,8 @@
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 from io import BytesIO
 import os
-import base64
 import re
+from b64encoder_decoder import custom_b64encode, custom_b64decode
 from typing import List, Optional, Tuple, Union
 
 class WatermarkError(Exception):
@@ -107,29 +107,6 @@ class CombinedWatermarkParams:
             raise WatermarkError("Align must be 0, 1, or 2")
         if not 0 <= self.interval <= 1000:
             raise WatermarkError("Interval must be between 0 and 1000")
-
-def custom_b64decode(encoded: str) -> str:
-    """
-    Decode custom base64 string:
-    - Replace - with +
-    - Replace _ with /
-    - Add padding =
-    """
-    encoded = encoded.replace('-', '+').replace('_', '/')
-    padding = 4 - (len(encoded) % 4)
-    if padding != 4:
-        encoded += '=' * padding
-    return base64.b64decode(encoded).decode('utf-8')
-
-def custom_b64encode(decoded: str) -> str:
-    """
-    Encode string to custom base64:
-    - Replace + with -
-    - Replace / with _
-    - Remove padding =
-    """
-    encoded = base64.b64encode(decoded.encode('utf-8')).decode('utf-8')
-    return encoded.replace('+', '-').replace('/', '_').rstrip('=')
 
 class WatermarkProcessor:
     """Main watermark processing class"""

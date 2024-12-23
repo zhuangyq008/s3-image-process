@@ -1,6 +1,6 @@
 # s3-image-process
 
-This project implements an API for resizing, cropping, watermarking, auto-orienting, and quality transforming images stored in an S3 bucket using FastAPI.
+This project implements an API for resizing, cropping, watermarking, auto-orienting, and quality transforming images stored in an S3 bucket using FastAPI. It also supports document format conversion between various formats.
 
 ## Project Structure
 
@@ -11,10 +11,14 @@ This project implements an API for resizing, cropping, watermarking, auto-orient
 │   ├── image_processor.py
 │   ├── image_cropper.py
 │   ├── s3_operations.py
-│   ├── watermark.py
-│   ├── format_converter.py
-│   ├── auto_orient.py
-│   ├── quality.py
+│   ├── image_watermark.py
+│   ├── image_format_converter.py
+│   ├── image_auto_orient.py
+│   ├── image_quality.py
+│   ├── doc_converter.py
+│   ├── doc_processor.py
+│   ├── doc_service.py
+│   ├── ddb_operations.py
 │   ├── font/
 │   │   └── 华文楷体.ttf
 │   ├── requirements.txt
@@ -69,10 +73,75 @@ The server will start running on `http://127.0.0.1:8000`. You can access the API
 
 ## API Usage
 
-The API provides a unified endpoint for image processing with operation chaining:
+The API provides unified endpoints for image and document processing with operation chaining:
+
+### Image Processing Endpoint
 
 ```
 /image/{image_key}?operations=operation1,param1_value1/operation2,param1_value1,param2_value2
+```
+
+### Document Processing Endpoint
+
+```
+/doc/{document_key}?operations=convert,source_{format},target_{format},pages_{base64pages}
+```
+
+### Document Conversion Features
+
+#### Supported Source Formats:
+
+1. Word Documents:
+   - doc, docx, wps, wpss, docm, dotm, dot, dotx, html
+
+2. PowerPoint Documents:
+   - pptx, ppt, pot, potx, pps, ppsx, dps, dpt, pptm, potm, ppsm, dpss
+
+3. Excel Documents:
+   - xls, xlt, et, ett, xlsx, xltx, csv, xlsb, xlsm, xltm, ets
+
+4. PDF Documents:
+   - pdf
+
+#### Supported Target Formats:
+
+- PDF: Convert any supported format to PDF
+- PNG/JPG: Convert any supported format to image
+- TXT: Extract text from Word, PowerPoint, and PDF documents
+
+#### Features:
+
+1. Page Selection:
+   - Convert specific pages using base64 encoded page numbers
+   - Example: "1,2,4-10" (must be base64 encoded)
+
+2. Output Naming:
+   - Without page selection: originalname.{target_format}
+   - With page selection: originalname_p{pages}.{target_format}
+   Example: 
+   - document.docx → document.pdf
+   - document.docx (pages 1,2,3) → document_p1_2_3.pdf
+
+3. Quality Control:
+   - High-quality PDF conversion
+   - Configurable image DPI (default: 300)
+   - Optimized image quality settings
+
+#### Example Usage:
+
+```bash
+# Convert DOCX to PDF (all pages)
+curl -X GET "http://127.0.0.1:8000/doc/document.docx?operations=convert,target_pdf"
+
+# Convert specific pages of DOCX to PDF (pages 1,2,3)
+# Note: page numbers must be base64 encoded
+curl -X GET "http://127.0.0.1:8000/doc/document.docx?operations=convert,target_pdf,pages_MSwyLDM"
+
+# Convert DOCX to PNG
+curl -X GET "http://127.0.0.1:8000/doc/document.docx?operations=convert,target_png"
+
+# Extract text from PDF
+curl -X GET "http://127.0.0.1:8000/doc/document.pdf?operations=convert,target_txt"
 ```
 
 ### Example Usage

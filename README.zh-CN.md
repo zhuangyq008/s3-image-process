@@ -1,6 +1,6 @@
 # s3-image-process
 
-本项目使用 FastAPI 实现了一个 API，用于处理存储在 S3 存储桶中的图片，支持调整大小、裁剪、添加水印、自动旋转和质量变换等功能。
+本项目使用 FastAPI 实现了一个 API，用于处理存储在 S3 存储桶中的图片，支持调整大小、裁剪、添加水印、自动旋转和质量变换等功能。同时还支持多种文档格式之间的转换。
 
 ## 项目结构
 
@@ -11,10 +11,14 @@
 │   ├── image_processor.py
 │   ├── image_cropper.py
 │   ├── s3_operations.py
-│   ├── watermark.py
-│   ├── format_converter.py
-│   ├── auto_orient.py
-│   ├── quality.py
+│   ├── image_watermark.py
+│   ├── image_format_converter.py
+│   ├── image_auto_orient.py
+│   ├── image_quality.py
+│   ├── doc_converter.py
+│   ├── doc_processor.py
+│   ├── doc_service.py
+│   ├── ddb_operations.py
 │   ├── font/
 │   │   └── 华文楷体.ttf
 │   ├── requirements.txt
@@ -69,10 +73,75 @@
 
 ## API使用说明
 
-API提供了统一的图片处理端点，支持操作链式调用：
+API提供了统一的图片处理和文档转换端点，支持操作链式调用：
+
+### 图片处理端点
 
 ```
 /image/{image_key}?operations=operation1,param1_value1/operation2,param1_value1,param2_value2
+```
+
+### 文档处理端点
+
+```
+/doc/{document_key}?operations=convert,source_{format},target_{format},pages_{base64pages}
+```
+
+### 文档转换功能
+
+#### 支持的源文件格式：
+
+1. Word文档：
+   - doc, docx, wps, wpss, docm, dotm, dot, dotx, html
+
+2. PPT文档：
+   - pptx, ppt, pot, potx, pps, ppsx, dps, dpt, pptm, potm, ppsm, dpss
+
+3. Excel文档：
+   - xls, xlt, et, ett, xlsx, xltx, csv, xlsb, xlsm, xltm, ets
+
+4. PDF文档：
+   - pdf
+
+#### 支持的目标格式：
+
+- PDF：将任何支持的格式转换为PDF
+- PNG/JPG：将任何支持的格式转换为图片
+- TXT：从Word、PowerPoint和PDF文档中提取文本
+
+#### 功能特点：
+
+1. 页面选择：
+   - 使用base64编码的页码转换指定页面
+   - 示例："1,2,4-10"（需要进行base64编码）
+
+2. 输出文件命名：
+   - 无页面选择时：原文件名.{目标格式}
+   - 有页面选择时：原文件名_p{页码}.{目标格式}
+   示例：
+   - document.docx → document.pdf
+   - document.docx（第1,2,3页）→ document_p1_2_3.pdf
+
+3. 质量控制：
+   - 高质量PDF转换
+   - 可配置的图像DPI（默认：300）
+   - 优化的图像质量设置
+
+#### 使用示例：
+
+```bash
+# 将DOCX转换为PDF（所有页面）
+curl -X GET "http://127.0.0.1:8000/doc/document.docx?operations=convert,target_pdf"
+
+# 将DOCX的特定页面转换为PDF（第1,2,3页）
+# 注意：页码需要进行base64编码
+curl -X GET "http://127.0.0.1:8000/doc/document.docx?operations=convert,target_pdf,pages_MSwyLDM"
+
+# 将DOCX转换为PNG
+curl -X GET "http://127.0.0.1:8000/doc/document.docx?operations=convert,target_png"
+
+# 从PDF提取文本
+curl -X GET "http://127.0.0.1:8000/doc/document.pdf?operations=convert,target_txt"
 ```
 
 ### 使用示例
