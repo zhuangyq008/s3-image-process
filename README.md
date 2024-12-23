@@ -79,34 +79,44 @@ The API provides a unified endpoint for image processing with operation chaining
 
 #### 1. Basic Operations
 
-```bash
-# Auto-orient image based on EXIF data
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1" --output result.jpg
+Test each individual operation:
 
-# Resize to 50% of original size
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50" --output result.jpg
+```
+# Auto-orient test
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1
 
-# Crop to 800x600 from center
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600,g_center" --output result.jpg
+# Resize test (50% of original)
+http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50
 
-# Add watermark with base64 encoded text
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_SGVsbG8gV29ybGQ,g_se" --output result.jpg
+# Crop test (800x600 from center)
+http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600,g_center
 
-# Adjust image quality
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
+# Watermark test
+http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_Q29weXJpZ2h0,g_se,t_80
+
+# Quality test (80% quality)
+http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80
 ```
 
 #### 2. Chained Operations
 
-```bash
-# Auto-orient and resize
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_1000,h_800" --output result.jpg
+Complex operations combining multiple transformations:
 
-# Resize and compress quality
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/quality,q_85" --output result.jpg
+```
+# Chain 1: Auto-orient + Resize + Quality
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_800,h_600/quality,q_85
 
-# Complete chain: auto-orient, resize, crop, watermark, and quality compression
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_SGVsbG8gV29ybGQ,g_se/quality,q_85" --output result.jpg
+# Chain 2: Resize + Crop + Watermark
+http://127.0.0.1:8000/image/example.jpg?operations=resize,p_70/crop,w_800,h_600,g_center/watermark,text_Q29weXJpZ2h0,g_se
+
+# Chain 3: Auto-orient + Crop + Watermark + Quality
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/crop,w_800,h_600,g_center/watermark,text_Q29weXJpZ2h0,g_se/quality,q_85
+
+# Chain 4: Resize + Watermark + Quality
+http://127.0.0.1:8000/image/example.jpg?operations=resize,w_1200,h_800/watermark,text_Q29weXJpZ2h0,g_se,t_80/quality,q_90
+
+# Chain 5: All Operations Combined
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_70/crop,w_800,h_600,g_center/watermark,text_Q29weXJpZ2h0,g_se,t_80/quality,q_85
 ```
 
 ## API Parameters

@@ -79,34 +79,44 @@ API提供了统一的图片处理端点，支持操作链式调用：
 
 #### 1. 基本操作
 
-```bash
-# 根据EXIF数据自动旋转图片
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1" --output result.jpg
+测试每个独立操作：
 
-# 将图片调整为原始大小的50%
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50" --output result.jpg
+```
+# 自动旋转测试
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1
 
-# 从中心裁剪为800x600
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600,g_center" --output result.jpg
+# 调整大小测试（原始大小的50%）
+http://127.0.0.1:8000/image/example.jpg?operations=resize,p_50
 
-# 添加base64编码的水印文字
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_54mI5p2D5omA5pyJ,g_se" --output result.jpg
+# 裁剪测试（从中心裁剪800x600）
+http://127.0.0.1:8000/image/example.jpg?operations=crop,w_800,h_600,g_center
 
-# 调整图片质量
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80" --output result.jpg
+# 水印测试
+http://127.0.0.1:8000/image/example.jpg?operations=watermark,text_Q29weXJpZ2h0,g_se,t_80
+
+# 质量测试（80%质量）
+http://127.0.0.1:8000/image/example.jpg?operations=quality,q_80
 ```
 
 #### 2. 链式操作
 
-```bash
-# 自动旋转并调整大小
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_1000,h_800" --output result.jpg
+组合多个转换操作的复杂示例：
 
-# 调整大小并压缩质量
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=resize,w_800,h_600/quality,q_85" --output result.jpg
+```
+# 链式操作1：自动旋转 + 调整大小 + 质量压缩
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,w_800,h_600/quality,q_85
 
-# 完整链式操作：自动旋转、调整大小、裁剪、添加水印和质量压缩
-curl -X GET "http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_50/crop,w_400,h_300,g_center/watermark,text_54mI5p2D5omA5pyJ,g_se/quality,q_85" --output result.jpg
+# 链式操作2：调整大小 + 裁剪 + 水印
+http://127.0.0.1:8000/image/example.jpg?operations=resize,p_70/crop,w_800,h_600,g_center/watermark,text_Q29weXJpZ2h0,g_se
+
+# 链式操作3：自动旋转 + 裁剪 + 水印 + 质量压缩
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/crop,w_800,h_600,g_center/watermark,text_Q29weXJpZ2h0,g_se/quality,q_85
+
+# 链式操作4：调整大小 + 水印 + 质量压缩
+http://127.0.0.1:8000/image/example.jpg?operations=resize,w_1200,h_800/watermark,text_Q29weXJpZ2h0,g_se,t_80/quality,q_90
+
+# 链式操作5：组合所有操作
+http://127.0.0.1:8000/image/example.jpg?operations=auto-orient,1/resize,p_70/crop,w_800,h_600,g_center/watermark,text_Q29weXJpZ2h0,g_se,t_80/quality,q_85
 ```
 
 ## API参数说明
